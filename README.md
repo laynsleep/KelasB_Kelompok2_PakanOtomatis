@@ -6,5 +6,5 @@
 | | Dimas |
 | H1H024044 | Chaedar Ali Amrulloh |
 | | Bintang
-| | M. |
+| H1H024046 | M.Fawaz Akbar |
 | | Gerard |
