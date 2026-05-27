@@ -6,7 +6,7 @@
 Kelompok    2
 Kelas       B
 
-Dosen     : isiin
+Dosen     : Dr. M. Agus Syamsul Arifin, S.St., M.Kom
 ```
 
 | NIM       | Nama                    |
