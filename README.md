@@ -12,7 +12,7 @@ Dosen     : Dr. M. Agus Syamsul Arifin, S.St., M.Kom
 | NIM       | Nama                    |
 | --------- | ----------------------- |
 | H1H024042 | Fachriel Yoga Wicaksono |
-|           | Dimas                   |
+| H1H024043 | Dimas Rafif Zaidan      |
 | H1H024044 | Chaedar Ali Amrulloh    |
 | H1H024045 | Bintang Nugraha Putra   |
 | H1H024046 | M.Fawaz Akbar           |
