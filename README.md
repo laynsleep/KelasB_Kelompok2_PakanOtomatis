@@ -16,7 +16,7 @@ Dosen     : Dr. M. Agus Syamsul Arifin, S.St., M.Kom
 | H1H024044 | Chaedar Ali Amrulloh    |
 | H1H024045 | Bintang Nugraha Putra   |
 | H1H024046 | M.Fawaz Akbar           |
-|           | Gerard                  |
+| H1H024047 | Gerard Roland Kusuma S. |
 
 ## Overview
 
