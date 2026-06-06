@@ -24,7 +24,6 @@ void postData()
     }
     else
     {
-        delay(1000);
         postData();
     }
 }
