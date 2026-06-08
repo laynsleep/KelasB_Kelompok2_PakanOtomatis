@@ -156,6 +156,32 @@ int readEncoder()
     return 0;
 }
 
+bool getNextSchedule(uint8_t hour, uint8_t minute, uint8_t &nextHour, uint8_t &nextMinute)
+{
+    if (loaded == 0) return false;
+
+    int currentTime = hour * 60 + minute;
+    int smallestDiff = 24 * 60 + 1;
+    int nextSchedule = -1;
+
+    for (size_t i = 0; i < loaded; i++) {
+        int scheduleTime = times[i][0] * 60 + times[i][1];
+        int diff = scheduleTime - currentTime;
+
+        if (diff < 0) diff += 24 * 60;
+        if (diff < smallestDiff) {
+            smallestDiff = diff;
+            nextSchedule = i;
+        }
+    }
+
+    // if (nextSchedule == -1) return false;
+
+    nextHour = times[nextSchedule][0];
+    nextMinute = times[nextSchedule][1];
+    return true;
+}
+
 void TaskServo(void *pvParameters)
 {
     (void)pvParameters;
@@ -199,7 +225,7 @@ void TaskServo(void *pvParameters)
 
 void TaskDisplay(void *pvParameters) {
     (void)pvParameters;
-    uint8_t currentHour, currentMinute, currentSecond;
+    uint8_t currentHour, currentMinute, currentSecond, nextHour, nextMinute;
     DisplayState lastState = STATE_DEFAULT;
     int hour, minute;
     char timeStr[20];
@@ -223,8 +249,8 @@ void TaskDisplay(void *pvParameters) {
                 break;
             case STATE_ADD_MINUTE:
                 minute = tempMinute + encoderDelta;
-                if (minute > 23) minute = 0;
-                if (minute < 0) minute = 23;
+                if (minute > 59) minute = 0;
+                if (minute < 0) minute = 59;
                 tempMinute = minute;
                 break;;
             case STATE_DELETE:
@@ -259,6 +285,11 @@ void TaskDisplay(void *pvParameters) {
                     break;
                 case STATE_ADD_MINUTE:
                     // save
+                    for (size_t i = 0; i < loaded; i++) {
+                        if(times[i][0] == tempHour && times[i][1] == tempMinute) {
+                            break;
+                        }
+                    }
                     if (loaded < MAX_TIMES) {
                         times[loaded][0] = tempHour;
                         times[loaded][1] = tempMinute;
@@ -290,22 +321,32 @@ void TaskDisplay(void *pvParameters) {
                 lcd.print(timeStr);
 
                 lcd.setCursor(0, 1);
-                lcd.print("Pakan Selanjutnya : ");
+                if (getNextSchedule(currentHour, currentMinute, nextHour, nextMinute)) {
+                    char buf[20];
+                    snprintf(buf, sizeof(buf), "Pakan: %02d:%02d",
+                            nextHour, nextMinute);
+                    lcd.print(buf);
+                } else lcd.print("Jadwal kosong");
                 break;
             case STATE_MENU:
                 lcd.setCursor(0, 0);
                 if (menuIndex == 0) {
-                    lcd.println(">Tambah Jadwal");
-                    lcd.println("Hapus Jadwal");
+                    lcd.setCursor(0, 0);
+                    lcd.print(">Tambah Jadwal");
+                    lcd.setCursor(0, 1);
+                    lcd.print("Hapus Jadwal");
                 } else {
-                    lcd.println("Tambah Jadwal");
-                    lcd.println(">Hapus Jadwal");
+                    lcd.setCursor(0, 0);
+                    lcd.print("Tambah Jadwal");
+                    lcd.setCursor(0, 1);
+                    lcd.print(">Hapus Jadwal");
                 }
                 break;
             case STATE_ADD_HOUR:
                 lcd.setCursor(0,0);
-                lcd.println("Set Jam");
+                lcd.print("Set Jam");
 
+                lcd.setCursor(0,1);
                 if (tempHour < 10) lcd.print("0");
                 lcd.print(tempHour);
                 lcd.print(":");
@@ -313,8 +354,9 @@ void TaskDisplay(void *pvParameters) {
                 break;
             case STATE_ADD_MINUTE:
                 lcd.setCursor(0,0);
-                lcd.println("Set Menit");
+                lcd.print("Set Menit");
 
+                lcd.setCursor(0,1);
                 if (tempHour < 10) lcd.print("0");
                 lcd.print(tempHour);
                 lcd.print(":");
@@ -323,6 +365,7 @@ void TaskDisplay(void *pvParameters) {
                 break;
             case STATE_DELETE:
                 // list jadwal
+                lcd.setCursor(0,0);
                 break;
         }
 
