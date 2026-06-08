@@ -24,6 +24,7 @@ const int rotarySWPin = 25;
 const int rotaryDTPin = 33;
 const int rotaryCLKPin = 32;
 volatile bool buttonPressed = false;
+volatile unsigned long lastInterrupt = 0;
 
 volatile DisplayState currentState = STATE_DEFAULT;
 int menuIndex = 0;
@@ -59,12 +60,16 @@ void setup()
     pinMode(btnPin, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(btnPin), InterruptButton, FALLING);
 
-    connectWifi();
-
     Wire.begin(lcdSDAPin, lcdSCLPin);
     lcd.init();
     lcd.backlight();
     lcd.clear();
+
+    pinMode(rotarySWPin, INPUT_PULLUP);
+    pinMode(rotaryDTPin, INPUT_PULLUP);
+    pinMode(rotaryCLKPin, INPUT_PULLUP);
+
+    connectWifi();
 
     // Sync time with NTP server
     configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
@@ -196,7 +201,8 @@ void TaskDisplay(void *pvParameters) {
     (void)pvParameters;
     uint8_t currentHour, currentMinute, currentSecond;
     DisplayState lastState = STATE_DEFAULT;
-    
+    int hour, minute;
+    char timeStr[20];
 
     while (1)
     {
@@ -210,12 +216,16 @@ void TaskDisplay(void *pvParameters) {
                 menuIndex = constrain(menuIndex, 0, 1);
                 break;
             case STATE_ADD_HOUR:
-                tempHour += encoderDelta;
-                if (tempHour > 23) tempHour = 0;
+                hour = tempHour + encoderDelta;
+                if (hour > 23) hour = 0;
+                if (hour < 0) hour = 23;
+                tempHour = hour;
                 break;
             case STATE_ADD_MINUTE:
-                tempMinute += encoderDelta;
-                if (tempMinute > 59) tempMinute = 0;
+                minute = tempMinute + encoderDelta;
+                if (minute > 23) minute = 0;
+                if (minute < 0) minute = 23;
+                tempMinute = minute;
                 break;;
             case STATE_DELETE:
                 selectedDeleteIndex += encoderDelta;
@@ -240,6 +250,7 @@ void TaskDisplay(void *pvParameters) {
                         tempMinute = 0;
                         currentState= STATE_ADD_HOUR;
                     } else {
+                        loaded == 0 ? currentState = STATE_DEFAULT : 
                         currentState = STATE_DELETE;
                     }
                     break;
@@ -248,6 +259,14 @@ void TaskDisplay(void *pvParameters) {
                     break;
                 case STATE_ADD_MINUTE:
                     // save
+                    if (loaded < MAX_TIMES) {
+                        times[loaded][0] = tempHour;
+                        times[loaded][1] = tempMinute;
+                        times[loaded][2] = 0;
+
+                        loaded++;
+                        saveSettings(times, loaded);
+                    }
                     currentState = STATE_DEFAULT;
                     break;
                 case STATE_DELETE:
@@ -265,13 +284,12 @@ void TaskDisplay(void *pvParameters) {
         // text to display
         switch (currentState) {
             case STATE_DEFAULT:
+                snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d",
+                        currentHour, currentMinute, currentSecond);
                 lcd.setCursor(0, 0);
-                lcd.print(currentHour);
-                lcd.print(":");
-                lcd.print(currentMinute);
-                lcd.print(":");
-                lcd.print(currentSecond);
-                lcd.println();
+                lcd.print(timeStr);
+
+                lcd.setCursor(0, 1);
                 lcd.print("Pakan Selanjutnya : ");
                 break;
             case STATE_MENU:
@@ -301,7 +319,6 @@ void TaskDisplay(void *pvParameters) {
                 lcd.print(tempHour);
                 lcd.print(":");
                 if (tempMinute < 10) lcd.print("0");
-                lcd.print("0");
                 lcd.print(tempMinute);
                 break;
             case STATE_DELETE:
@@ -353,6 +370,11 @@ void TaskPostData(void *pvParameters)
 
 void IRAM_ATTR InterruptButton()
 {
-    buttonPressed = true;
+    unsigned long currentInterrupt = millis();
+    if (currentInterrupt - lastInterrupt > 200)
+    {
+        buttonPressed = true;
+        lastInterrupt = currentInterrupt;
+    }
 }
 
