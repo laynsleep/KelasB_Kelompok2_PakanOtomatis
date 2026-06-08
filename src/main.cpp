@@ -168,7 +168,7 @@ bool getNextSchedule(uint8_t hour, uint8_t minute, uint8_t &nextHour, uint8_t &n
         int scheduleTime = times[i][0] * 60 + times[i][1];
         int diff = scheduleTime - currentTime;
 
-        if (diff < 0) diff += 24 * 60;
+        if (diff <= 0) diff += 24 * 60;
         if (diff < smallestDiff) {
             smallestDiff = diff;
             nextSchedule = i;
@@ -265,7 +265,9 @@ void TaskDisplay(void *pvParameters) {
 
         // change display state if button interrupt is pressed
         if (buttonPressed) {
+            bool exist = false;
             buttonPressed = false;
+
             switch (currentState) {
                 case STATE_DEFAULT:
                     currentState = STATE_MENU;
@@ -276,6 +278,7 @@ void TaskDisplay(void *pvParameters) {
                         tempMinute = 0;
                         currentState= STATE_ADD_HOUR;
                     } else {
+                        selectedDeleteIndex = 0;
                         loaded == 0 ? currentState = STATE_DEFAULT : 
                         currentState = STATE_DELETE;
                     }
@@ -287,10 +290,11 @@ void TaskDisplay(void *pvParameters) {
                     // save
                     for (size_t i = 0; i < loaded; i++) {
                         if(times[i][0] == tempHour && times[i][1] == tempMinute) {
+                            exist = true;
                             break;
                         }
                     }
-                    if (loaded < MAX_TIMES) {
+                    if (!exist && loaded < MAX_TIMES) {
                         times[loaded][0] = tempHour;
                         times[loaded][1] = tempMinute;
                         times[loaded][2] = 0;
@@ -302,6 +306,15 @@ void TaskDisplay(void *pvParameters) {
                     break;
                 case STATE_DELETE:
                     // delete
+                    if (loaded > 0) {
+                        memmove(
+                            &times[selectedDeleteIndex], 
+                            &times[selectedDeleteIndex + 1], 
+                            (loaded - selectedDeleteIndex - 1) * sizeof(times[0]));
+
+                        loaded--;
+                        saveSettings(times, loaded);
+                    }
                     currentState = STATE_DEFAULT;
                     break;
             }
@@ -322,10 +335,11 @@ void TaskDisplay(void *pvParameters) {
 
                 lcd.setCursor(0, 1);
                 if (getNextSchedule(currentHour, currentMinute, nextHour, nextMinute)) {
-                    char buf[20];
-                    snprintf(buf, sizeof(buf), "Pakan: %02d:%02d",
+                    snprintf(timeStr, sizeof(timeStr), "Pakan: %02d:%02d",
                             nextHour, nextMinute);
-                    lcd.print(buf);
+                    lcd.print("                ");
+                    lcd.setCursor(0, 1);
+                    lcd.print(timeStr);
                 } else lcd.print("Jadwal kosong");
                 break;
             case STATE_MENU:
@@ -366,6 +380,12 @@ void TaskDisplay(void *pvParameters) {
             case STATE_DELETE:
                 // list jadwal
                 lcd.setCursor(0,0);
+                lcd.print("Hapus Jadwal");
+
+                lcd.setCursor(0,1);
+                snprintf(timeStr, sizeof(timeStr), "%02d:%02d",
+                        times[selectedDeleteIndex][0], times[selectedDeleteIndex][1]);
+                lcd.print(timeStr);
                 break;
         }
 
