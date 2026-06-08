@@ -20,6 +20,9 @@ const int btnPin = 4;
 const int servoPin = 26;
 const int lcdSDAPin = 21;
 const int lcdSCLPin = 22;
+const int rotarySWPin = 25;
+const int rotaryDTPin = 33;
+const int rotaryCLKPin = 32;
 volatile bool buttonPressed = false;
 
 volatile DisplayState currentState = STATE_DEFAULT;
@@ -129,6 +132,25 @@ bool isScheduledTime(uint8_t hour, uint8_t minute)
     return false;
 }
 
+int readEncoder()
+{
+    static int lastCLK = HIGH;
+    int currentCLK = digitalRead(rotaryCLKPin);
+
+    if (currentCLK != lastCLK && currentCLK == LOW) {
+        if (digitalRead(rotaryDTPin) != currentCLK) {
+            lastCLK = currentCLK;
+            return 1;
+        } else {
+            lastCLK = currentCLK;
+            return -1;
+        }
+    }
+
+    lastCLK = currentCLK;
+    return 0;
+}
+
 void TaskServo(void *pvParameters)
 {
     (void)pvParameters;
@@ -172,9 +194,40 @@ void TaskServo(void *pvParameters)
 
 void TaskDisplay(void *pvParameters) {
     (void)pvParameters;
+    uint8_t currentHour, currentMinute, currentSecond;
+    DisplayState lastState = STATE_DEFAULT;
+    
 
     while (1)
     {
+        getLocalTime(currentHour, currentMinute, currentSecond);
+        int encoderDelta = readEncoder();
+
+        // read encoder input
+        switch (currentState) {
+            case STATE_MENU:
+                menuIndex += encoderDelta;
+                menuIndex = constrain(menuIndex, 0, 1);
+                break;
+            case STATE_ADD_HOUR:
+                tempHour += encoderDelta;
+                if (tempHour > 23) tempHour = 0;
+                break;
+            case STATE_ADD_MINUTE:
+                tempMinute += encoderDelta;
+                if (tempMinute > 59) tempMinute = 0;
+                break;;
+            case STATE_DELETE:
+                selectedDeleteIndex += encoderDelta;
+                selectedDeleteIndex = constrain(
+                    selectedDeleteIndex,
+                    0,
+                    loaded - 1
+                );
+                break;
+        }
+
+        // change display state if button interrupt is pressed
         if (buttonPressed) {
             buttonPressed = false;
             switch (currentState) {
@@ -203,6 +256,60 @@ void TaskDisplay(void *pvParameters) {
                     break;
             }
         }
+
+        if(lastState != currentState){
+            lcd.clear();
+            lastState = currentState;
+        }
+
+        // text to display
+        switch (currentState) {
+            case STATE_DEFAULT:
+                lcd.setCursor(0, 0);
+                lcd.print(currentHour);
+                lcd.print(":");
+                lcd.print(currentMinute);
+                lcd.print(":");
+                lcd.print(currentSecond);
+                lcd.println();
+                lcd.print("Pakan Selanjutnya : ");
+                break;
+            case STATE_MENU:
+                lcd.setCursor(0, 0);
+                if (menuIndex == 0) {
+                    lcd.println(">Tambah Jadwal");
+                    lcd.println("Hapus Jadwal");
+                } else {
+                    lcd.println("Tambah Jadwal");
+                    lcd.println(">Hapus Jadwal");
+                }
+                break;
+            case STATE_ADD_HOUR:
+                lcd.setCursor(0,0);
+                lcd.println("Set Jam");
+
+                if (tempHour < 10) lcd.print("0");
+                lcd.print(tempHour);
+                lcd.print(":");
+                lcd.print("00");
+                break;
+            case STATE_ADD_MINUTE:
+                lcd.setCursor(0,0);
+                lcd.println("Set Menit");
+
+                if (tempHour < 10) lcd.print("0");
+                lcd.print(tempHour);
+                lcd.print(":");
+                if (tempMinute < 10) lcd.print("0");
+                lcd.print("0");
+                lcd.print(tempMinute);
+                break;
+            case STATE_DELETE:
+                // list jadwal
+                break;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
@@ -248,3 +355,4 @@ void IRAM_ATTR InterruptButton()
 {
     buttonPressed = true;
 }
+
