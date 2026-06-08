@@ -2,12 +2,31 @@
 #include <WifiCon.h>
 #include <ESP32Servo.h>
 #include <time.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 #include "Data.h"
 #include "HttpCon.h"
 
+enum DisplayState
+{
+    STATE_DEFAULT,
+    STATE_MENU,
+    STATE_ADD_HOUR,
+    STATE_ADD_MINUTE,
+    STATE_DELETE
+};
+
 const int btnPin = 4;
 const int servoPin = 26;
+const int lcdSDAPin = 21;
+const int lcdSCLPin = 22;
 volatile bool buttonPressed = false;
+
+volatile DisplayState currentState = STATE_DEFAULT;
+int menuIndex = 0;
+int selectedDeleteIndex = 0;
+uint8_t tempHour = 0;
+uint8_t tempMinute = 0;
 
 const char *modelName = "PakanOtomatis-v1"; // Nama model device
 const size_t MAX_TIMES = 20;
@@ -21,6 +40,7 @@ volatile uint8_t lastPostHour = 255;
 volatile uint8_t lastPostMinute = 255;
 
 Servo servo;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 void TaskServo(void *pvParameters);
 void TaskPostData(void *pvParameters);
@@ -37,6 +57,11 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(btnPin), InterruptButton, FALLING);
 
     connectWifi();
+
+    Wire.begin(lcdSDAPin, lcdSCLPin);
+    lcd.init();
+    lcd.backlight();
+    lcd.clear();
 
     // Sync time with NTP server
     configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
@@ -75,6 +100,7 @@ void setup()
 
     xTaskCreatePinnedToCore(TaskServo, "Servo", 4096, NULL, 1, NULL, 1);
     xTaskCreatePinnedToCore(TaskPostData, "PostData", 8192, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(TaskDisplay, "Display", 4096, NULL, 1, NULL, 1);
 }
 
 void loop() {}
@@ -144,7 +170,42 @@ void TaskServo(void *pvParameters)
     }
 }
 
-void TaskDisplay(void *pvParameters) {}
+void TaskDisplay(void *pvParameters) {
+    (void)pvParameters;
+
+    while (1)
+    {
+        if (buttonPressed) {
+            buttonPressed = false;
+            switch (currentState) {
+                case STATE_DEFAULT:
+                    currentState = STATE_MENU;
+                    break;
+                case STATE_MENU:
+                    if (menuIndex == 0) {
+                        tempHour = 0;
+                        tempMinute = 0;
+                        currentState= STATE_ADD_HOUR;
+                    } else {
+                        currentState = STATE_DELETE;
+                    }
+                    break;
+                case STATE_ADD_HOUR:
+                    currentState = STATE_ADD_MINUTE;
+                    break;
+                case STATE_ADD_MINUTE:
+                    // save
+                    currentState = STATE_DEFAULT;
+                    break;
+                case STATE_DELETE:
+                    // delete
+                    currentState = STATE_DEFAULT;
+                    break;
+            }
+        }
+    }
+}
+
 void TaskPostData(void *pvParameters)
 {
     (void)pvParameters;
